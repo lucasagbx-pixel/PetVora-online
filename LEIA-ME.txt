@@ -1,0 +1,26 @@
+PETVORA ONLINE — PRIMEIRA VERSÃO MULTIPLAYER
+
+ARQUIVOS
+- index.html: jogo com menu Online e seleção de salas.
+- server.js: servidor WebSocket que cria salas e sincroniza jogadores.
+- package.json: dependência e comando de inicialização.
+
+TESTAR NO MESMO COMPUTADOR
+1. Instale Node.js (versão LTS) em https://nodejs.org/
+2. Abra o terminal dentro desta pasta.
+3. Execute: npm install
+4. Execute: npm start
+5. Abra index.html no navegador.
+6. Clique em “Jogar online”, mantenha ws://localhost:8080 e conecte.
+7. Abra outra janela/aba do navegador, entre novamente e use outro nome para testar dois jogadores.
+
+PARA JOGAR PELA INTERNET COM OUTRAS PESSOAS
+O servidor precisa ficar hospedado em um serviço que execute Node.js e aceite conexões WebSocket. Publique esta pasta/repositório na hospedagem, configure o comando de início `npm start` e use no campo do jogo o endereço WebSocket público fornecido pelo serviço (normalmente wss://...). Não use localhost para amigos fora do seu computador: localhost aponta para o próprio aparelho de cada pessoa.
+
+SALAS
+- Clássica: crescimento 1x, perda de massa normal.
+- Crescimento Rápido: crescimento 2x, perda 2x e velocidade um pouco maior.
+- Modo Caos: crescimento 3x, perda 3,5x e velocidade maior.
+
+IMPORTANTE
+Esta é uma primeira base funcional de conexão e sincronização de jogadores. A simulação principal e as colisões ainda são executadas no navegador do jogador; portanto, não é ainda um sistema competitivo autoritativo/anti-trapaça de produção. Para lançamento público, o próximo passo é mover colisões, crescimento, mortes e placar para o servidor e adicionar proteção contra abuso, reconexão e persistência de contas.

@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PetVora</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0a0e19; }
+  canvas#tela { display:block; width:100%; height:100%; cursor:crosshair; touch-action:none; }
+  .painel {
+    position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; text-align:center; color:#fff;
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:radial-gradient(circle at 50% 35%, rgba(70,130,230,0.40), rgba(8,11,20,0.95) 70%);
+    padding:22px; overflow-y:auto;
+  }
+  .oculto { display:none !important; }
+  h1 {
+    font-size:clamp(38px,10vw,78px); font-weight:900; letter-spacing:-2px;
+    background:linear-gradient(180deg,#fff,#7fd4ff 60%,#3aa0f0);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  h2 { font-size:clamp(22px,6vw,36px); font-weight:800; }
+  p { max-width:560px; line-height:1.6; color:rgba(255,255,255,0.85); }
+  b { color:#fff; }
+  .botoes { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:6px; }
+  button.acao {
+    font:700 17px system-ui,sans-serif; color:#08111f; border:none; cursor:pointer;
+    border-radius:999px; padding:15px 44px;
+    background:linear-gradient(180deg,#8fe0ff,#38a4f5);
+    box-shadow:0 12px 30px rgba(56,164,245,0.4);
+    transition:transform .12s, filter .12s;
+  }
+  button.acao.sec { background:linear-gradient(180deg,#4b5670,#2c3448); color:#fff;
+    box-shadow:0 12px 26px rgba(0,0,0,0.4); }
+  button.acao:hover { filter:brightness(1.1); transform:translateY(-2px); }
+  .teclas { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+  .tecla {
+    font:600 12px system-ui,sans-serif; color:rgba(255,255,255,0.88);
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16);
+    padding:5px 11px; border-radius:8px;
+  }
+  .tecla.dest { background:rgba(255,209,102,0.16); border-color:rgba(255,209,102,0.5); color:#ffd166; }
+  .dica { font-size:13.5px; color:rgba(255,255,255,0.55); line-height:1.7; max-width:580px; }
+  #grade {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+    gap:10px; width:min(780px,94vw); max-height:54vh; overflow-y:auto; padding:6px;
+  }
+  .skin {
+    display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;
+    background:rgba(255,255,255,0.06); border:2px solid rgba(255,255,255,0.12);
+    border-radius:14px; padding:10px 6px; color:#fff; font-family:inherit;
+  }
+  .skin:hover { border-color:rgba(127,212,255,0.7); transform:translateY(-3px); }
+  .skin.ativa { border-color:#5ff2b0; background:rgba(95,242,176,0.14); }
+  .skin.travada { opacity:0.42; }
+  .skin span { font-size:13px; font-weight:700; }
+  .skin small { font-size:11px; color:rgba(255,255,255,0.6); line-height:1.3; }
+  .skin canvas { width:74px; height:74px; }
+  .campo-online { width:min(460px,92vw); padding:12px 15px; border:1px solid rgba(255,255,255,.2); border-radius:12px; background:rgba(5,10,20,.48); color:#fff; font:15px system-ui,sans-serif; outline:none; }
+  .salas { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:10px; width:min(760px,94vw); }
+  .sala { border:2px solid rgba(255,255,255,.14); border-radius:14px; padding:14px 12px; text-align:left; color:#fff; background:rgba(255,255,255,.06); cursor:pointer; font:14px system-ui,sans-serif; }
+  .sala strong { display:block; font-size:16px; margin-bottom:5px; }
+  .sala small { color:rgba(255,255,255,.7); line-height:1.45; }
+  .sala.ativa { border-color:#5ff2b0; background:rgba(95,242,176,.13); }
+  #statusOnline { font-size:13px; color:#ffd166; min-height:20px; }
+</style>
+</head>
+<body>
+<canvas id="tela"></canvas>
+
+<div id="inicio" class="painel oculto">
+  <h1>PetVora</h1>
+  <p>Guie sua criatura com o mouse, colete os pontos e devore quem for menor que voce.
+     Se um maior te alcancar, ele arranca suas partes uma a uma.</p>
+  <div class="botoes">
+    <button class="acao" id="jogar">Jogar solo</button>
+    <button class="acao" id="abrirOnline">Jogar online</button>
+    <button class="acao sec" id="abrirSkins">Skins</button>
+  </div>
+  <div class="teclas">
+    <span class="tecla dest">Espaco = dividir e capturar</span>
+    <span class="tecla dest">W = soltar massa em bolinhas</span>
+    <span class="tecla">Shift = turbo (perde massa)</span>
+    <span class="tecla">Mouse = mover</span>
+  </div>
+  <div class="dica">
+    Movimento suave: a criatura acelera e freia sozinha.<br>
+    Espaco divide sua massa em partes que voam na direcao do mouse.
+    As partes se juntam de novo em 10 segundos.<br>
+    W solta <b>bolinhas de massa</b> no mapa, que servem de isca ou para recolher depois.<br>
+    <b>Alimentador triplo:</b> o anel dourado pulsante vale 3x, e ainda deixa bolinhas triplas no chao. 30 FPS fixos.
+  </div>
+</div>
+
+<div id="online" class="painel oculto">
+  <h2>PetVora Online</h2>
+  <p>Entre em uma sala e dispute com outras pessoas em tempo real. Para jogar pela internet, o servidor precisa estar publicado e acessível.</p>
+  <input id="nomeOnline" class="campo-online" maxlength="18" placeholder="Seu nome no jogo" value="Jogador" />
+  <input id="enderecoOnline" class="campo-online" placeholder="Endereço do servidor (ex.: wss://seuservidor.com)" value="ws://localhost:8080" />
+  <div class="salas" id="salasOnline">
+    <button class="sala ativa" data-sala="classica"><strong>🌎 Clássica</strong><small>Crescimento normal, perda equilibrada e partidas estratégicas.</small></button>
+    <button class="sala" data-sala="turbo"><strong>⚡ Crescimento Rápido</strong><small>Você cresce 2x mais rápido, mas perde massa 2x mais rápido.</small></button>
+    <button class="sala" data-sala="caos"><strong>💥 Modo Caos</strong><small>Crescimento 3x, perda 3,5x e movimento mais veloz.</small></button>
+  </div>
+  <div id="statusOnline">Escolha uma sala e conecte ao servidor.</div>
+  <div class="botoes">
+    <button class="acao" id="conectarOnline">Conectar e jogar</button>
+    <button class="acao sec" id="voltarOnline">Voltar</button>
+  </div>
+  <div class="dica">Se estiver jogando só no seu computador, use ws://localhost:8080. Para outras pessoas entrarem de qualquer lugar, publique o servidor e use o endereço wss:// fornecido pela hospedagem.</div>
+</div>
+
+<div id="skins" class="painel oculto">
+  <h2>Escolha sua skin</h2>
+  <p style="margin-bottom:4px">Sete vem liberadas. As outras abrem conforme voce cresce, devora criaturas e joga partidas.</p>
+  <div id="grade"></div>
+  <div class="botoes">
+    <button class="acao" id="voltar">Voltar</button>
+    <button class="acao sec" id="zerar">Apagar progresso</button>
+  </div>
+</div>
+
+<div id="fim" class="painel oculto">
+  <h1>Fim de jogo</h1>
+  <p id="motivo"></p>
+  <p id="placar"></p>
+  <div class="botoes">
+    <button class="acao" id="deNovo">Jogar de novo</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PETVORA - jogo completo
+   Motor de movimento simples (o que funcionou), com todos os
+   recursos pedidos por cima:
+
+   - Mouse: mira no cursor, criatura para quando o cursor esta nela
+   - Espaco: divide a massa para capturar o oponente
+   - Partes se juntam de novo em 1 segundo
+   - Adversario arranca uma parte por vez; so morre ao perder a ultima
+   - W: solta massa em particulas que podem ser recolhidas (isca)
+   - Shift: turbo, drena a massa pouco a pouco
+   - Sem pausa, sem modo fuga
+   - 14 skins desenhadas por codigo, com galeria e desbloqueio
+   - 30 FPS fixos
+   - Recorde e progresso salvos no navegador
+   ============================================================ */
+
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("tela");
+  var ctx = canvas.getContext("2d");
+
+  var L = 0, A = 0;
+  function ajustar() {
+    L = window.innerWidth;
+    A = window.innerHeight;
+    canvas.width = L;
+    canvas.height = A;
+    canvas.style.width = L + "px";
+    canvas.style.height = A + "px";
+  }
+  window.addEventListener("resize", ajustar);
+
+  /* ---------------- CONFIG ---------------- */
+  var MUNDO = 4200;
+  var R_INICIAL = 26;
+  var R_MIN = 16;
+  var R_MAX = 320;
+  var VEL = 235;                 // pixels por segundo (base)
+  var ZONA_MORTA = 8;            // cursor aqui dentro = parada
+  var FREIO = 55;                // pixels ate o alvo em que a criatura vai freando
+  var ACEL = 6.5;                // rapidez com que ganha velocidade
+  var DESACEL = 11;              // rapidez com que perde velocidade
+  var FUSAO_FORCA = 7;           // forca com que as partes se puxam ao juntar
+  var MAX_CELULAS = 8;
+
+  var FUSAO_TEMPO = 10.0;        // 10 segundos para juntar de novo
+  var DIVISAO_VOO = 760;         // impulso das metades
+  var DIVISAO_CUSTO = 0.03;
+  var ALCANCE_BOTE = 1.3;        // alcance extra no instante da divisao
+
+  var TURBO_MULT = 1.8;
+  var TURBO_DRENO = 0.85;        // massa por segundo
+
+  var RECARGA_QTD = 10;          // quantas bolinhas saem
+  var RECARGA_MASSA = 0.4;       // massa que cada bolinha carrega
+  var RECARGA_VOO = 230;
+  var RECARGA_VIDA = 5.0;
+  var RECARGA_MAX = 0.6;         // fracao maxima da massa que pode sair
+
+  var IMUNIDADE = 0.7;           // segundos de graca apos perder uma parte
+  var PERDA_PASSIVA = 0.005;
+  var FPS = 30;
+
+  var PALETA = ["#4FB3F5","#FF6B8A","#8BD34E","#FFC93C","#A77BFF","#38D9C4","#FF8A3D",
+    "#F45B69","#5AD1FF","#C6E24B","#FF77C8","#7ED957","#6C7BFF","#FFA45C","#4EE0A0",
+    "#E86AF0","#FFD166","#67C6FF"];
+
+  function sorteia(a) { return a[(Math.random() * a.length) | 0]; }
+  function lim(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function dist(ax, ay, bx, by) { var dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); }
+
+  /* ---------------- PROGRESSO ---------------- */
+  var CHAVE = "petvora_final_v1";
+  var prog = { recorde: 0, devorados: 0, partidas: 0, skin: "classico" };
+
+  function carrega() {
+    try {
+      var s = localStorage.getItem(CHAVE);
+      if (!s) return;
+      var d = JSON.parse(s);
+      prog.recorde = d.recorde || 0;
+      prog.devorados = d.devorados || 0;
+      prog.partidas = d.partidas || 0;
+      prog.skin = d.skin || "classico";
+    } catch (e) { }
+  }
+  function salva() {
+    try { localStorage.setItem(CHAVE, JSON.stringify(prog)); } catch (e) { }
+  }
+
+  /* ---------------- ESTADO ---------------- */
+  var bichos = [];
+  var eu = null;
+  var comida = [];
+  var massas = [];          // particulas do W
+  var faiscas = [];         // efeitos visuais
+  var cam = { x: 0, y: 0, zoom: 1 };
+  var mouseX = 0, mouseY = 0, mouseOk = false;
+  var turbo = false, imune = 0, acabou = false;
+  var tempo = 0, abates = 0, avisoTxt = "", avisoTempo = 0;
+  var socketOnline = null, modoOnline = false, salaOnline = "classica", idOnline = null;
+  var ultimoEnvioOnline = 0, proximaSincronia = 0;
+  var regrasSala = { crescimento: 1, perda: 1, velocidade: 1, nome: "Solo" };
+
+  /* ---------------- CRIATURA ----------------
+     Guarda x, y e raio. As partes divididas sao um vetor de celulas.   */
+  function Celula(x, y, r) {
+    return { x: x, y: y, r: r, voo: 0, vx: 0, vy: 0, espera: 0, pisca: Math.random() * 5,
+      // velocidade propria de cada parte, usada para suavizar o movimento
+      velx: 0, vely: 0 };
+  }
+
+  function Cria(x, y, r, c, nome, meu) {
+    return {
+      celulas: [Celula(x, y, r)],
+      cor: c, nome: nome, meu: !!meu, vivo: true,
+      alvoX: x, alvoY: y, muda: rnd(1, 3), querDividir: rnd(4, 12)
+    };
+  }
+
+  function massa(b) {
+    var m = 0;
+    for (var i = 0; i < b.celulas.length; i++) m += b.celulas[i].r * b.celulas[i].r;
+    return m;
+  }
+  function raio(b) { return Math.sqrt(massa(b)); }
+  function centro(b) {
+    var sx = 0, sy = 0, m = 0;
+    for (var i = 0; i < b.celulas.length; i++) {
+      var c = b.celulas[i], cm = c.r * c.r;
+      sx += c.x * cm; sy += c.y * cm; m += cm;
+    }
+    if (m <= 0) return { x: 0, y: 0 };
+    return { x: sx / m, y: sy / m };
+  }
+
+  /* ---------------- MOVIMENTO (a regra que funcionou) ---------------- */
+  // Anda de (x,y) rumo a (ax,ay), no maximo maxPx pixels.
+  function passo(x, y, ax, ay, maxPx) {
+    var d = dist(x, y, ax, ay);
+    if (d <= ZONA_MORTA) return { x: x, y: y, andou: false };
+    var usa = Math.min(d, maxPx);
+    return { x: x + ((ax - x) / d) * usa, y: y + ((ay - y) / d) * usa, andou: true };
+  }
+
+  // Move a criatura inteira: o CENTRO vai na direcao do alvo, todas as
+  // celulas andam junto, e depois se separam para nao se sobrepor.
+  function moveCriatura(b, alvoX, alvoY, dt, mult) {
+    var cs = b.celulas;
+    var ct = centro(b);
+
+    // vetor do centro ate o alvo
+    var vx = alvoX - ct.x, vy = alvoY - ct.y;
+    var d = Math.sqrt(vx * vx + vy * vy);
+
+    // rumo desejado (0 quando o cursor esta sobre a criatura)
+    var dirX = 0, dirY = 0;
+    if (d > ZONA_MORTA) { dirX = vx / d; dirY = vy / d; }
+
+    // --- SUAVIZACAO ---
+    // Freia conforme chega perto do alvo: dentro de FREIO px a velocidade cai
+    // proporcionalmente, entao a criatura para de forma natural.
+    var alvoVel = 0;
+    if (d > ZONA_MORTA) {
+      var freio = lim((d - ZONA_MORTA) / FREIO, 0, 1);
+      alvoVel = VEL * mult * freio;
+    }
+
+    for (var i = 0; i < cs.length; i++) {
+      var c = cs[i];
+
+      // impulso da divisao
+      if (c.voo > 0) {
+        c.voo -= dt;
+        c.x += c.vx * dt; c.y += c.vy * dt;
+        c.vx *= 0.9; c.vy *= 0.9;
+      }
+
+      // acelera a velocidade da parte em direcao ao alvo, sem salto
+      var dvx = dirX * alvoVel - c.velx;
+      var dvy = dirY * alvoVel - c.vely;
+      var dv = Math.sqrt(dvx * dvx + dvy * dvy);
+      if (dv > 0.0001) {
+        // ACEL subindo, FREIO_DESCE descendo (mais rapido para parar)
+        var quanto = Math.min(dv, (dv * 0.9) * dt * (alvoVel > 0 ? ACEL : DESACEL));
+        c.velx += (dvx / dv) * quanto;
+        c.vely += (dvy / dv) * quanto;
+      }
+
+      c.x += c.velx * dt;
+      c.y += c.vely * dt;
+      c.x = lim(c.x, c.r, MUNDO - c.r);
+      c.y = lim(c.y, c.r, MUNDO - c.r);
+      if (c.espera > 0) c.espera -= dt;
+    }
+
+    // separacao: as partes se empurram de leve, sem tremer
+    for (var a = 0; a < cs.length; a++) {
+      for (var d2 = a + 1; d2 < cs.length; d2++) {
+        var p1 = cs[a], p2 = cs[d2];
+        var ddx = p2.x - p1.x, ddy = p2.y - p1.y;
+        var dd = Math.sqrt(ddx * ddx + ddy * ddy) || 0.001;
+        var soma = p1.r + p2.r;
+        if (dd < soma) {
+          var emp = (soma - dd) * 0.5;
+          var ux = ddx / dd, uy = ddy / dd;
+          p1.x -= ux * emp; p1.y -= uy * emp;
+          p2.x += ux * emp; p2.y += uy * emp;
+          // tambem freia a aproximacao, para nao vibrar
+          p1.velx -= ux * emp * 2; p1.vely -= uy * emp * 2;
+          p2.velx += ux * emp * 2; p2.vely += uy * emp * 2;
+        }
+      }
+    }
+
+    // ---------- FUSAO ----------
+    // Quando o tempo acaba, as partes se atraem FORTE ate se encostar e fundir.
+    if (cs.length > 1) {
+      var livre = true;
+      for (var k = 0; k < cs.length; k++) if (cs[k].espera > 0) livre = false;
+
+      if (livre) {
+        // atracao: cada parte vai direto para o centro de massa, com forca
+        // proporcional a distancia, para nao ficar orbitando
+        var ct2 = centro(b);
+        for (var g = 0; g < cs.length; g++) {
+          var cg = cs[g];
+          var ax2 = ct2.x - cg.x, ay2 = ct2.y - cg.y;
+          var ad = Math.sqrt(ax2 * ax2 + ay2 * ay2);
+          if (ad > 0.3) {
+            var forca = Math.min(ad, ad * FUSAO_FORCA * dt);
+            cg.x += (ax2 / ad) * forca;
+            cg.y += (ay2 / ad) * forca;
+            cg.velx += (ax2 / ad) * forca * 3;
+            cg.vely += (ay2 / ad) * forca * 3;
+          }
+        }
+
+        // funde quando as bordas se tocam bem
+        var fundiuAlgo = true;
+        while (fundiuAlgo && cs.length > 1) {
+          fundiuAlgo = false;
+          for (var f = 0; f < cs.length && !fundiuAlgo; f++) {
+            for (var h = f + 1; h < cs.length; h++) {
+              var A1 = cs[f], B1 = cs[h];
+              var perto = dist(A1.x, A1.y, B1.x, B1.y);
+              // 0.9 = bem encostados, garante que a fusao termina sempre
+              if (perto < (A1.r + B1.r) * 0.9) {
+                var mA = A1.r * A1.r, mB = B1.r * B1.r;
+                A1.x = (A1.x * mA + B1.x * mB) / (mA + mB);
+                A1.y = (A1.y * mA + B1.y * mB) / (mA + mB);
+                A1.r = Math.sqrt(mA + mB);
+                A1.velx = (A1.velx * mA + B1.velx * mB) / (mA + mB);
+                A1.vely = (A1.vely * mA + B1.vely * mB) / (mA + mB);
+                cs.splice(h, 1);
+                fundiuAlgo = true;
+                explode(A1.x, A1.y, b.cor, 1.2, 5);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* ---------------- DIVISAO (Espaco) ---------------- */
+  function divide(b, dx, dy) {
+    if (b.celulas.length >= MAX_CELULAS) return false;
+    var d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = dx / d, ny = dy / d;
+    var novas = [], fez = false;
+    var atuais = b.celulas.slice();
+    for (var i = 0; i < atuais.length; i++) {
+      var c = atuais[i];
+      if (b.celulas.length + novas.length >= MAX_CELULAS) break;
+      if (c.r < R_MIN * 1.6) continue;
+      var metade = (c.r * c.r * (1 - DIVISAO_CUSTO)) / 2;
+      var nr = Math.sqrt(metade);
+      c.r = nr;
+      var n = Celula(c.x, c.y, nr);
+      n.voo = 0.45;
+      n.vx = nx * DIVISAO_VOO;
+      n.vy = ny * DIVISAO_VOO;
+      n.espera = FUSAO_TEMPO;
+      c.espera = FUSAO_TEMPO;
+      novas.push(n);
+      fez = true;
+    }
+    for (var j = 0; j < novas.length; j++) b.celulas.push(novas[j]);
+    if (fez) explode(centro(b).x, centro(b).y, b.cor, 2, 12);
+    return fez;
+  }
+
+  /* ---------------- RECARGA (W) ---------------- */
+  function recarrega(b, dx, dy) {
+    var ct = centro(b);
+
+    // quantas bolinhas podem sair, sem deixar a criatura abaixo do minimo
+    var disponivel = massa(b) - R_MIN * R_MIN * 1.2;
+    if (disponivel <= 0) return false;
+
+    // cada bolinha leva RECARGA_MASSA de massa; o numero sai da massa que a
+    // criatura pode ceder, limitado pela fracao maxima
+    var podeCeder = Math.min(disponivel, massa(b) * RECARGA_MAX);
+    var qtd = Math.max(1, Math.min(RECARGA_QTD, Math.floor(podeCeder / RECARGA_MASSA)));
+    var massaPorBolinha = podeCeder / qtd;
+
+    // retira a massa das celulas proporcionalmente
+    var antes = massa(b);
+    for (var i = 0; i < b.celulas.length; i++) {
+      var c = b.celulas[i];
+      var tira = podeCeder * ((c.r * c.r) / antes);
+      c.r = Math.sqrt(Math.max(R_MIN * R_MIN, c.r * c.r - tira));
+    }
+
+    var base = Math.atan2(dy, dx) || 0;
+    for (var j = 0; j < qtd; j++) {
+      var esp = (j / Math.max(1, qtd - 1) - 0.5) * 1.0;
+      var a = base + esp;
+      var v = RECARGA_VOO * rnd(0.6, 1.15);
+
+      // BOLINHA: raio tirado da massa real, para o desenho corresponder
+      var rBolinha = Math.max(3.5, Math.sqrt(massaPorBolinha) * 2.6);
+
+      massas.push({
+        x: ct.x + Math.cos(a) * raio(b) * 0.6,
+        y: ct.y + Math.sin(a) * raio(b) * 0.6,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        vxBase: Math.cos(a) * v, vyBase: Math.sin(a) * v,
+        m: massaPorBolinha,
+        cor: b.cor,
+        vida: RECARGA_VIDA,
+        r: rBolinha,
+        nasceu: 0
+      });
+    }
+    explode(ct.x, ct.y, b.cor, 2, 8);
+    return true;
+  }
+
+  /* ---------------- BOLINHAS DE MASSA NO MAPA ---------------- */
+  // Solta 'qtd' bolinhas redondas em volta de (x,y), cada uma com 'massaCada'.
+  function soltaBolinhas(x, y, cor, qtd, massaTotal) {
+    if (massaTotal <= 0 || qtd <= 0) return;
+    var cada = massaTotal / qtd;
+    var rB = Math.max(3.5, Math.sqrt(cada) * 2.6);
+    for (var i = 0; i < qtd; i++) {
+      var a = (i / qtd) * 6.283 + Math.random() * 0.5;
+      var v = 120 * rnd(0.7, 1.2);
+      massas.push({
+        x: x, y: y,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        m: cada, cor: cor, vida: RECARGA_VIDA, r: rB, nasceu: 0
+      });
+    }
+  }
+
+  /* ---------------- CRESCER / ENCOLHER ---------------- */
+  // A massa recebida cresce SOMENTE na celula que recolheu o alimento.
+  // As outras partes mantem exatamente o tamanho que ja tinham.
+  function cresce(b, m, celula) {
+    m *= (modoOnline ? regrasSala.crescimento : 1);
+    if (!celula || b.celulas.indexOf(celula) < 0) return;
+    celula.r = Math.sqrt(lim(celula.r * celula.r + m, R_MIN * R_MIN, R_MAX * R_MAX));
+  }
+  function perdePassivo(b, dt) {
+    for (var i = 0; i < b.celulas.length; i++) {
+      var c = b.celulas[i];
+      if (c.r <= R_INICIAL) continue;
+      c.r = Math.max(R_INICIAL, c.r - c.r * PERDA_PASSIVA * dt * (modoOnline ? regrasSala.perda : 1));
+    }
+  }
+
+  /* ---------------- FAISCAS ---------------- */
+  function explode(x, y, c, forca, qtd) {
+    for (var i = 0; i < qtd; i++) {
+      if (faiscas.length > 260) break;
+      var a = Math.random() * Math.PI * 2;
+      var v = rnd(0.35, 1) * forca;
+      faiscas.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        r: rnd(2, 5), cor: c, vida: rnd(0.3, 0.8) });
+    }
+  }
+  function passoFaiscas(dt) {
+    for (var i = 0; i < faiscas.length; i++) {
+      var p = faiscas[i];
+      p.x += p.vx * dt * 60; p.y += p.vy * dt * 60;
+      p.vx *= 0.93; p.vy *= 0.93;
+      p.vida -= dt;
+      if (p.vida <= 0) { faiscas.splice(i, 1); i--; }
+    }
+  }
+
+  /* ---------------- INICIAR ---------------- */
+  function inicia() {
+    bichos = []; comida = []; massas = []; faiscas = [];
+    acabou = false; tempo = 0; abates = 0; imune = 0; turbo = false;
+    avisoTxt = ""; avisoTempo = 0;
+
+    eu = Cria(MUNDO / 2, MUNDO / 2, R_INICIAL, sorteia(PALETA), "Voce", true);
+    eu.celulas[0].pisca = Math.random() * 5;
+    bichos.push(eu);
+
+    for (var i = 0; i < 24; i++) {
+      var r = rnd(16, 44);
+      var b = Cria(Math.random() * MUNDO, Math.random() * MUNDO, r, sorteia(PALETA),
+        "Bot " + (i + 1), false);
+      bichos.push(b);
+    }
+    // alguns pequenos perto do inicio, para o jogo nao comecar vazio
+    for (var k = 0; k < 6; k++) {
+      var a = Math.random() * Math.PI * 2;
+      var b2 = Cria(MUNDO / 2 + Math.cos(a) * rnd(260, 520),
+                    MUNDO / 2 + Math.sin(a) * rnd(260, 520),
+                    rnd(12, 19), sorteia(PALETA), "Bot", false);
+      bichos.push(b2);
+    }
+
+    for (var j = 0; j < 1100; j++) comida.push(comidaNova());
+
+    cam.x = eu.celulas[0].x; cam.y = eu.celulas[0].y;
+    mouseOk = false;
+
+    prog.partidas++; salva();
+    document.getElementById("fim").classList.add("oculto");
+    document.getElementById("inicio").classList.add("oculto");
+  }
+
+  function comidaNova() {
+    var r0 = Math.random();
+    // "triplo" e o alimentador especial: vale 3x
+    var tipo = r0 < 0.66 ? "ponto" : (r0 < 0.84 ? "fruta" : (r0 < 0.97 ? "cristal" : "triplo"));
+    var r = rnd(4, 9), mult = 1;
+    if (tipo === "cristal") { r = rnd(8, 12); mult = 2.6; }
+    if (tipo === "fruta") { r = rnd(6, 10); mult = 1.7; }
+    if (tipo === "triplo") { r = rnd(10, 14); mult = 3.0; }
+    return { x: Math.random() * MUNDO, y: Math.random() * MUNDO,
+      r: r, c: sorteia(PALETA), fase: Math.random() * 6.28, tipo: tipo, mult: mult };
+  }
+
+  /* ---------------- ENTRADA ---------------- */
+  function lerMouse(e) {
+    var rc = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rc.left;
+    mouseY = e.clientY - rc.top;
+    mouseOk = true;
+  }
+  canvas.addEventListener("pointermove", lerMouse);
+  canvas.addEventListener("pointerdown", lerMouse);
+  // Zoom manual pela rodinha do mouse: rodar para cima aproxima, para baixo afasta.
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var fator = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    cam.zoom = lim(cam.zoom * fator, 0.22, 2.5);
+  }, { passive: false });
+  canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  window.addEventListener("keydown", function (e) {
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (!acabou && eu.vivo) {
+        var alvoDivX = rumoX(), alvoDivY = rumoY(), centroDiv = centro(eu);
+        if (!divide(eu, alvoDivX - centroDiv.x, alvoDivY - centroDiv.y)) {
+          aviso(eu.celulas.length >= MAX_CELULAS
+            ? "Limite de " + MAX_CELULAS + " partes"
+            : "Pequena demais para dividir");
+        } else {
+          aviso("Dividiu! Alcance estendido");
+        }
+      }
+    }
+    if (e.code === "KeyW") {
+      e.preventDefault();
+      if (!acabou && eu.vivo) {
+        var alvoMassaX = rumoX(), alvoMassaY = rumoY(), centroMassa = centro(eu);
+        aviso(recarrega(eu, alvoMassaX - centroMassa.x, alvoMassaY - centroMassa.y)
+          ? "Massa liberada em particulas"
+          : "Pequena demais para recarregar");
+      }
+    }
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") turbo = true;
+  });
+  window.addEventListener("keyup", function (e) {
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") turbo = false;
+  });
+  canvas.addEventListener("dblclick", function () {
+    if (!acabou && eu.vivo) {
+      var alvoDuploX = rumoX(), alvoDuploY = rumoY(), centroDuplo = centro(eu);
+      divide(eu, alvoDuploX - centroDuplo.x, alvoDuploY - centroDuplo.y);
+    }
+  });
+
+  function rumoX() { return cam.x + (mouseX - L / 2) / cam.zoom; }
+  function rumoY() { return cam.y + (mouseY - A / 2) / cam.zoom; }
+
+  function aviso(t) { avisoTxt = t; avisoTempo = 2; }
+
+  /* ---------------- DEVORAR ---------------- */
+  var MARGEM = 0.35;
+
+  // Arranca UMA celula. Devolve true se comeu alguma.
+  function devora(quem, vitima) {
+    var alvos = vitima.celulas.slice();
+    for (var i = 0; i < alvos.length; i++) {
+      var cc = alvos[i];
+      for (var j = 0; j < quem.celulas.length; j++) {
+        var cb = quem.celulas[j];
+        if (cb.r < cc.r * 1.1) continue;
+        var alcance = cb.r - cc.r * MARGEM;
+        var bonus = (quem === eu && cb.voo > 0) ? ALCANCE_BOTE : 1;
+        if (dist(cb.x, cb.y, cc.x, cc.y) < alcance * bonus) {
+          cb.r = Math.sqrt(lim(cb.r * cb.r + cc.r * cc.r * 0.7, R_MIN * R_MIN, R_MAX * R_MAX));
+          var pi = vitima.celulas.indexOf(cc);
+          if (pi >= 0) vitima.celulas.splice(pi, 1);
+          if (vitima.celulas.length === 0) vitima.vivo = false;
+          explode(cc.x, cc.y, vitima.cor, 3, 14);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /* ---------------- ATUALIZAR ---------------- */
+  function atualiza(dt) {
+    tempo += dt;
+    if (imune > 0) imune -= dt;
+    if (avisoTempo > 0) avisoTempo -= dt;
+
+    /* ---- jogador ---- */
+    if (eu.vivo) {
+      var ct = centro(eu);
+      var telaX = L / 2 + (ct.x - cam.x) * cam.zoom;
+      var telaY = A / 2 + (ct.y - cam.y) * cam.zoom;
+      var d = dist(telaX, telaY, mouseX, mouseY);
+
+      if (mouseOk && d > ZONA_MORTA) {
+        var mult = (modoOnline ? regrasSala.velocidade : 1);
+        if (turbo && massa(eu) > R_INICIAL * R_INICIAL * 1.15) {
+          mult = TURBO_MULT;
+          // turbo drena a massa pouco a pouco
+          var antes = massa(eu);
+          var tira = TURBO_DRENO * dt;
+          for (var t1 = 0; t1 < eu.celulas.length; t1++) {
+            var c1 = eu.celulas[t1];
+            var parte = tira * ((c1.r * c1.r) / (antes || 1));
+            c1.r = Math.sqrt(Math.max(R_MIN * R_MIN, c1.r * c1.r - parte));
+          }
+          if (Math.random() < 0.35) {
+            var cc1 = eu.celulas[(Math.random() * eu.celulas.length) | 0];
+            explode(cc1.x, cc1.y, eu.cor, 1, 1);
+          }
+        }
+        // alvo em coordenadas de mundo, partindo do centro
+        var alvoX = ct.x + (mouseX - telaX);
+        var alvoY = ct.y + (mouseY - telaY);
+        moveCriatura(eu, alvoX, alvoY, dt, mult);
+      } else {
+        moveCriatura(eu, ct.x, ct.y, dt, 1);
+      }
+      perdePassivo(eu, dt);
+    }
+
+    /* ---- bots ---- */
+    for (var i = 0; i < bichos.length; i++) {
+      var b = bichos[i];
+      if (!b.vivo || b.meu || b.onlinePlayer) continue;
+
+      b.muda -= dt;
+      var bc = centro(b);
+      if (b.muda <= 0) {
+        b.muda = rnd(1.5, 3.5);
+        b.alvoX = lim(bc.x + rnd(-1100, 1100), 0, MUNDO);
+        b.alvoY = lim(bc.y + rnd(-1100, 1100), 0, MUNDO);
+      }
+      b.querDividir -= dt;
+
+      var alvoX = b.alvoX, alvoY = b.alvoY;
+
+      if (eu.vivo) {
+        var ec = centro(eu);
+        var dj = dist(bc.x, bc.y, ec.x, ec.y);
+        if (dj < 640) {
+          if (raio(b) > raio(eu) * 1.1) { alvoX = ec.x; alvoY = ec.y; }          // caca
+          else if (raio(eu) > raio(b) * 1.1) {                                    // foge
+            alvoX = bc.x + (bc.x - ec.x);
+            alvoY = bc.y + (bc.y - ec.y);
+          }
+          // divide para alcancar quem esta fugindo
+          if (b.querDividir <= 0 && raio(b) > raio(eu) * 1.3 && dj < 420 &&
+              b.celulas.length < MAX_CELULAS) {
+            divide(b, ec.x - bc.x, ec.y - bc.y);
+            b.querDividir = rnd(6, 14);
+          }
+        }
+      }
+      // caca bots menores proximos
+      var presa = null, menor = 1e9;
+      for (var o = 0; o < bichos.length; o++) {
+        var ou = bichos[o];
+        if (ou === b || !ou.vivo || raio(b) < raio(ou) * 1.1) continue;
+        var oc = centro(ou);
+        var dd = dist(oc.x, oc.y, bc.x, bc.y);
+        if (dd < 520 && dd < menor) { menor = dd; presa = ou; }
+      }
+      if (presa) { var pc = centro(presa); alvoX = pc.x; alvoY = pc.y; }
+
+      moveCriatura(b, alvoX, alvoY, dt, 0.85);
+      perdePassivo(b, dt);
+    }
+
+    /* ---- comida ---- */
+    for (var k = comida.length - 1; k >= 0; k--) {
+      var f = comida[k];
+      var comeu = false;
+      for (var m = 0; m < bichos.length && !comeu; m++) {
+        var g = bichos[m];
+        if (!g.vivo) continue;
+        for (var n = 0; n < g.celulas.length; n++) {
+          var gc = g.celulas[n];
+          if (dist(gc.x, gc.y, f.x, f.y) < gc.r + f.r * 1.2) {
+            cresce(g, f.r * f.r * 0.4 * f.mult, gc);
+            explode(f.x, f.y, f.c, 1.2, f.tipo === "triplo" ? 18 : (f.tipo === "cristal" ? 8 : 3));
+            // o alimentador triplo ainda deixa bolinhas de massa tripla no chao
+            if (f.tipo === "triplo") {
+              soltaBolinhas(f.x, f.y, f.c, 3, f.r * f.r * 0.35 * 3);
+            }
+            comeu = true;
+            break;
+          }
+        }
+      }
+      if (comeu) { comida.splice(k, 1); comida.push(comidaNova()); }
+    }
+
+    /* ---- devorar ---- */
+    if (eu.vivo) {
+      for (var q = 0; q < bichos.length; q++) {
+        var en = bichos[q];
+        if (!en.vivo || en.meu) continue;
+
+        if (raio(en) > raio(eu) * 1.1 && imune <= 0) {
+          if (devora(en, eu)) {
+            if (!eu.vivo) { morre(en); break; }
+            imune = IMUNIDADE;
+            aviso("Perdeu uma parte! Restam " + eu.celulas.length);
+          }
+        }
+        if (eu.vivo && raio(eu) > raio(en) * 1.1) {
+          if (devora(eu, en) && !en.vivo) {
+            abates++; prog.devorados++; salva();
+          }
+        }
+      }
+    }
+    for (var x1 = 0; x1 < bichos.length; x1++) {
+      var A1 = bichos[x1];
+      if (!A1.vivo) continue;
+      for (var x2 = x1 + 1; x2 < bichos.length; x2++) {
+        var B1 = bichos[x2];
+        if (!B1.vivo) continue;
+        if (raio(A1) > raio(B1) * 1.1) devora(A1, B1);
+        else if (raio(B1) > raio(A1) * 1.1) devora(B1, A1);
+      }
+    }
+    for (var z = bichos.length - 1; z >= 0; z--) if (!bichos[z].vivo) bichos.splice(z, 1);
+    while (bichos.length < 25) {
+      bichos.push(Cria(Math.random() * MUNDO, Math.random() * MUNDO, rnd(16, 40),
+        sorteia(PALETA), "Bot", false));
+    }
+
+    /* ---- particulas de massa (W) ---- */
+    for (var w = 0; w < massas.length; w++) {
+      var p = massas[w];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vx *= 0.9; p.vy *= 0.9;
+      var pegou = false;
+      for (var y = 0; y < bichos.length && !pegou; y++) {
+        var bb = bichos[y];
+        if (!bb.vivo) continue;
+        for (var u = 0; u < bb.celulas.length; u++) {
+          var bc2 = bb.celulas[u];
+          if (dist(bc2.x, bc2.y, p.x, p.y) < bc2.r + p.r * 1.6) {
+            cresce(bb, p.m, bc2);
+            pegou = true;
+            break;
+          }
+        }
+      }
+      if (pegou) { explode(p.x, p.y, p.cor, 1, 3); massas.splice(w, 1); w--; continue; }
+      p.vida -= dt;
+      if (p.vida <= 0) { massas.splice(w, 1); w--; }
+    }
+    while (massas.length > 240) massas.shift();
+
+    passoFaiscas(dt);
+
+    /* ---- camera ---- */
+    if (eu.vivo) {
+      var cf = centro(eu);
+      cam.x += (cf.x - cam.x) * Math.min(1, dt * 6);
+      cam.y += (cf.y - cam.y) * Math.min(1, dt * 6);
+    }
+
+    if (eu.vivo && raio(eu) > prog.recorde) prog.recorde = raio(eu);
+  }
+
+  function morre(quem) {
+    acabou = true;
+    imune = 0;
+    salva();
+    document.getElementById("motivo").innerHTML =
+      quem ? ("<b>" + quem.nome + "</b> devorou sua ultima parte!") : "<b>Voce foi devorado!</b>";
+    document.getElementById("placar").innerHTML =
+      "Massa final: <b>" + Math.round(raio(eu)) + "</b> &nbsp;&middot;&nbsp; " +
+      "Tempo: <b>" + Math.floor(tempo) + "s</b> &nbsp;&middot;&nbsp; " +
+      "Devorados: <b>" + abates + "</b><br>" +
+      "<span style='opacity:.7'>Recorde: massa " + Math.round(prog.recorde) +
+      " &middot; Total devorado: " + prog.devorados + "</span>";
+    document.getElementById("fim").classList.remove("oculto");
+    montaGaleria();
+  }
+
+  /* ---------------- DESENHO ---------------- */
+  function desenha() {
+    var t = performance.now() / 1000;
+    if (!eu) return;
+
+    var cx = centro(eu);
+    var ox = L / 2 - cam.x;
+    var oy = A / 2 - cam.y;
+
+    // fundo
+    var g = ctx.createLinearGradient(0, 0, 0, A);
+    g.addColorStop(0, "#141a2b");
+    g.addColorStop(1, "#0a0e19");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, L, A);
+
+    // O mundo inteiro usa zoom; o HUD continua fixo e legivel na tela.
+    ctx.save();
+    ctx.translate(L / 2, A / 2);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-L / 2, -A / 2);
+
+    // grade
+    ctx.strokeStyle = "rgba(120,170,255,0.055)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    var x0 = Math.floor((cam.x - L / 2) / 220) * 220;
+    for (var gx = x0; gx < cam.x + L; gx += 220) { ctx.moveTo(gx + ox, 0); ctx.lineTo(gx + ox, A); }
+    var y0 = Math.floor((cam.y - A / 2) / 220) * 220;
+    for (var gy = y0; gy < cam.y + A; gy += 220) { ctx.moveTo(0, gy + oy); ctx.lineTo(L, gy + oy); }
+    ctx.stroke();
+
+    // borda do mundo
+    ctx.strokeStyle = "rgba(120,180,255,0.35)";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(ox, oy, MUNDO, MUNDO);
+
+    // comida
+    for (var i = 0; i < comida.length; i++) {
+      var f = comida[i];
+      var fx = f.x + ox, fy = f.y + oy;
+      if (fx < -30 || fy < -30 || fx > L + 30 || fy > A + 30) continue;
+      var pr = f.r * (1 + Math.sin(t * 2 + f.fase) * 0.15);
+      if (f.tipo === "triplo") {
+        // alimentador triplo: anel pulsante + tres nucleos
+        var pul = 1 + Math.sin(t * 4 + f.fase) * 0.12;
+        ctx.beginPath();
+        ctx.arc(fx, fy, pr * 1.7 * pul, 0, 6.283);
+        ctx.strokeStyle = "rgba(255,225,120,0.9)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(fx, fy, pr * 1.15 * pul, 0, 6.283);
+        ctx.fillStyle = f.c; ctx.fill();
+        for (var u = 0; u < 3; u++) {
+          var au = t * 2 + (u / 3) * 6.283;
+          ctx.beginPath();
+          ctx.arc(fx + Math.cos(au) * pr * 0.7, fy + Math.sin(au) * pr * 0.7, pr * 0.45, 0, 6.283);
+          ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.fill();
+        }
+      } else if (f.tipo === "cristal") {
+        ctx.save(); ctx.translate(fx, fy); ctx.rotate(t + f.fase);
+        ctx.beginPath();
+        for (var v = 0; v < 4; v++) {
+          var an = (v / 4) * 6.283;
+          var px = Math.cos(an) * pr * 1.4, py = Math.sin(an) * pr * 1.4;
+          if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = f.c; ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(fx, fy, pr, 0, 6.283);
+        ctx.fillStyle = f.c; ctx.fill();
+        if (pr > 5) {
+          ctx.beginPath();
+          ctx.arc(fx - pr * 0.3, fy - pr * 0.3, pr * 0.35, 0, 6.283);
+          ctx.fillStyle = "rgba(255,255,255,0.65)"; ctx.fill();
+        }
+      }
+    }
+
+    // particulas de massa (W)
+    for (var w = 0; w < massas.length; w++) {
+      var p = massas[w];
+      if (p.vida < 1.5 && Math.sin(t * 16) > 0) continue;
+      var mx2 = p.x + ox, my2 = p.y + oy;
+      ctx.globalAlpha = lim(p.vida / 2, 0.35, 1);
+
+      // sombra leve
+      ctx.beginPath();
+      ctx.ellipse(mx2, my2 + p.r * 0.8, p.r * 0.9, p.r * 0.25, 0, 0, 6.283);
+      ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fill();
+
+      // bolinha: gradiente para parecer uma esfera
+      var gm = ctx.createRadialGradient(mx2 - p.r * 0.3, my2 - p.r * 0.35, p.r * 0.1,
+                                        mx2, my2, p.r);
+      gm.addColorStop(0, "#ffffff");
+      gm.addColorStop(0.4, p.cor);
+      gm.addColorStop(1, "rgba(0,0,0,0.55)");
+      ctx.beginPath();
+      ctx.arc(mx2, my2, p.r, 0, 6.283);
+      ctx.fillStyle = gm; ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+    }
+
+    // marcas de alvo
+    if (eu.vivo) {
+      for (var m = 0; m < bichos.length; m++) {
+        var b0 = bichos[m];
+        if (!b0.vivo || b0.meu) continue;
+        var bc0 = centro(b0);
+        var dd0 = dist(bc0.x, bc0.y, cx.x, cx.y);
+        if (dd0 > 900) continue;
+        var marca = null;
+        if (raio(eu) > raio(b0) * 1.1) marca = "rgba(120,255,150,0.7)";
+        else if (raio(b0) > raio(eu) * 1.1) marca = "rgba(255,90,110,0.7)";
+        if (!marca) continue;
+        ctx.beginPath();
+        ctx.arc(bc0.x + ox, bc0.y + oy, raio(b0) + 5, 0, 6.283);
+        ctx.strokeStyle = marca;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([7, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // faiscas
+    for (var q = 0; q < faiscas.length; q++) {
+      var fa = faiscas[q];
+      ctx.globalAlpha = lim(fa.vida / 0.8, 0, 1);
+      ctx.beginPath();
+      ctx.arc(fa.x + ox, fa.y + oy, fa.r, 0, 6.283);
+      ctx.fillStyle = fa.cor; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // criaturas
+    var lista = [];
+    for (var a = 0; a < bichos.length; a++) {
+      var bb2 = bichos[a];
+      for (var c = 0; c < bb2.celulas.length; c++) lista.push({ cel: bb2.celulas[c], dono: bb2 });
+    }
+    lista.sort(function (p1, p2) { return p1.cel.r - p2.cel.r; });
+    for (var s = 0; s < lista.length; s++) {
+      var it = lista[s];
+      var sx = it.cel.x + ox, sy = it.cel.y + oy;
+      if (sx < -400 || sy < -400 || sx > L + 400 || sy > A + 400) continue;
+      desenhaCelula(sx, sy, it.cel, it.dono, t, imune > 0 && it.dono === eu);
+    }
+
+    // mira
+    if (mouseOk && eu.vivo) {
+      ctx.beginPath();
+      var miraX = L / 2 + (mouseX - L / 2) / cam.zoom;
+      var miraY = A / 2 + (mouseY - A / 2) / cam.zoom;
+      ctx.arc(miraX, miraY, 7 / cam.zoom, 0, 6.283);
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(miraX - 13 / cam.zoom, miraY); ctx.lineTo(miraX - 4 / cam.zoom, miraY);
+      ctx.moveTo(miraX + 4 / cam.zoom, miraY); ctx.lineTo(miraX + 13 / cam.zoom, miraY);
+      ctx.moveTo(miraX, miraY - 13 / cam.zoom); ctx.lineTo(miraX, miraY - 4 / cam.zoom);
+      ctx.moveTo(miraX, miraY + 4 / cam.zoom); ctx.lineTo(miraX, miraY + 13 / cam.zoom);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+    desenhaHud(t);
+  }
+
+  function desenhaCelula(x, y, c, dono, t, piscando) {
+    var r = c.r;
+    var skin = SKINS[dono.meu ? prog.skin : dono.skin] || SKINS.classico;
+
+    if (piscando && Math.sin(t * 30) > 0) ctx.globalAlpha = 0.45;
+
+    skin(r, x, y, dono.cor, t, c.pisca, dono, c);
+
+    ctx.globalAlpha = 1;
+
+    if (dono.nome && r > 20 && dono.celulas.length === 1) {
+      ctx.font = "700 " + Math.max(11, Math.min(20, r * 0.32)) + "px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = "rgba(0,0,0,0.6)";
+      ctx.strokeText(dono.nome, x, y - r - 10);
+      ctx.fillStyle = dono.meu ? "#fff" : "rgba(255,255,255,0.9)";
+      ctx.fillText(dono.nome, x, y - r - 10);
+    }
+  }
+
+  function desenhaHud(t) {
+    if (!eu) return;
+
+    // minimapa
+    var mm = 150, mx = L - mm - 20, my = 20;
+    ctx.fillStyle = "rgba(8,12,20,0.72)";
+    ctx.strokeStyle = "rgba(140,190,255,0.35)";
+    ctx.lineWidth = 2;
+    arred(mx, my, mm, mm, 12);
+    ctx.fill(); ctx.stroke();
+
+    var k = mm / MUNDO;
+    for (var i = 0; i < bichos.length; i++) {
+      var b = bichos[i];
+      if (!b.vivo) continue;
+      var bc = centro(b);
+      ctx.beginPath();
+      ctx.arc(mx + bc.x * k, my + bc.y * k, Math.max(1.4, raio(b) * k * 2), 0, 6.283);
+      ctx.fillStyle = b.meu ? "#ffffff"
+        : (raio(b) > raio(eu) * 1.1 ? "rgba(255,110,130,0.6)" : "rgba(255,255,255,0.35)");
+      ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.strokeRect(mx + (cam.x - L / 2) * k, my + (cam.y - A / 2) * k, L * k, A * k);
+
+    // placar
+    ctx.textAlign = "left";
+    ctx.font = "800 22px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillText("Massa " + Math.round(raio(eu)), 22, 40);
+
+    ctx.font = "600 15px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.62)";
+    ctx.fillText("Tempo " + Math.floor(tempo) + "s", 22, 64);
+    ctx.fillText("Devorados " + abates, 22, 86);
+    ctx.fillText("Recorde " + Math.round(prog.recorde), 22, 108);
+    ctx.fillText("Partes " + eu.celulas.length + "/" + MAX_CELULAS, 22, 130);
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.fillText("30 FPS", 22, 152);
+
+    // barra ate o recorde
+    var pct = lim(raio(eu) / Math.max(1, prog.recorde), 0, 1);
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    arred(22, 162, 190, 10, 5); ctx.fill();
+    ctx.fillStyle = "#5ff2b0";
+    arred(22, 162, 190 * pct, 10, 5); ctx.fill();
+
+    // avisos centrais
+    var linhaY = 42;
+    var maior = null, menor = 1e9, ec = centro(eu);
+    for (var m = 0; m < bichos.length; m++) {
+      var nn = bichos[m];
+      if (!nn.vivo || nn.meu || raio(nn) <= raio(eu) * 1.1) continue;
+      var nc = centro(nn);
+      var d = dist(nc.x, nc.y, ec.x, ec.y);
+      if (d < menor) { menor = d; maior = nn; }
+    }
+    if (maior && menor < 700 && eu.vivo) {
+      ctx.globalAlpha = 1 - lim(menor / 700, 0, 1);
+      ctx.font = "800 20px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ff7a8c";
+      ctx.fillText("PERIGO: " + maior.nome, L / 2, linhaY);
+      ctx.globalAlpha = 1;
+      linhaY += 26;
+    }
+    if (eu.celulas.length > 1) {
+      var espera = eu.celulas[0].espera;
+      ctx.font = "700 15px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = espera > 0 ? "#ffb26b" : "#5ff2b0";
+      ctx.fillText(espera > 0
+        ? ("Juntando em " + espera.toFixed(1) + "s")
+        : "Partes se juntando...", L / 2, linhaY);
+      linhaY += 24;
+    }
+    if (massas.length > 0) {
+      ctx.font = "700 14px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText("Particulas de massa no mapa: " + massas.length, L / 2, linhaY);
+      linhaY += 22;
+    }
+    if (avisoTempo > 0) {
+      ctx.globalAlpha = lim(avisoTempo, 0, 1);
+      ctx.font = "700 17px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fff";
+      ctx.fillText(avisoTxt, L / 2, linhaY);
+      ctx.globalAlpha = 1;
+    }
+
+    // controles
+    ctx.textAlign = "center";
+    ctx.font = "600 14px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.fillText("Espaco = dividir  ·  W = soltar massa  ·  Shift = turbo", L / 2, A - 26);
+    if (turbo && eu.vivo && massa(eu) > R_INICIAL * R_INICIAL * 1.15) {
+      ctx.font = "800 16px system-ui, sans-serif";
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText("TURBO (perdendo massa)", L / 2, A - 52);
+    }
+  }
+
+  function arred(x, y, w, h, r) {
+    if (w < r * 2) r = w / 2;
+    if (h < r * 2) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  /* ---------------- SKINS ----------------
+     Cada skin desenha um corpo em (x,y) com raio r. 14 variacoes.      */
+  function esc(hex, f) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return "rgb(" + Math.round(r * (1 - f)) + "," + Math.round(g * (1 - f)) + "," + Math.round(b * (1 - f)) + ")";
+  }
+  function cla(hex, f) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return "rgb(" + Math.round(r + (255 - r) * f) + "," + Math.round(g + (255 - g) * f) + "," + Math.round(b + (255 - b) * f) + ")";
+  }
+  function sombra(x, y, r) {
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.82, r * 0.85, r * 0.2, 0, 0, 6.283);
+    ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fill();
+  }
+  function corpo(x, y, r, cor, cl, es) {
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.08, x, y, r);
+    g.addColorStop(0, cla(cor, cl));
+    g.addColorStop(0.38, cor);
+    g.addColorStop(1, esc(cor, es));
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 6.283);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1.3, r * 0.06);
+    ctx.strokeStyle = esc(cor, 0.55); ctx.stroke();
+  }
+  function olhos(x, y, r, pisca, t, tipo) {
+    var ab = (Math.sin(pisca + t * 1.8) > 0.94) ? 0.1 : 1;
+    for (var s = -1; s <= 1; s += 2) {
+      var ex = x + s * r * 0.34, ey = y - r * 0.12;
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, r * 0.18, r * 0.18 * ab, 0, 0, 6.283);
+      ctx.fillStyle = tipo === "gato" ? "#e8f36b" : (tipo === "vampiro" ? "#fff" : "#fff");
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ex + r * 0.05, ey + r * 0.04, r * 0.08, 0, 6.283);
+      ctx.fillStyle = tipo === "vampiro" ? "#d0233b" : "#20232b";
+      ctx.fill();
+    }
+  }
+  function boca(x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y + r * 0.14, r * 0.3, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.lineWidth = Math.max(1.2, r * 0.06);
+    ctx.strokeStyle = "#20232b";
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+
+  var SKINS = {};
+
+  SKINS.classico = function (r, x, y, cor, t, pisca) {
+    sombra(x, y, r); corpo(x, y, r, cor, 0.6, 0.45);
+    olhos(x, y, r, pisca, t); if (r > 14) boca(x, y, r);
+  };
+
+  SKINS.olhos_grandes = function (r, x, y, cor, t, pisca) {
+    sombra(x, y, r); corpo(x, y, r, cor, 0.65, 0.4);
+    for (var s = -1; s <= 1; s += 2) {
+      var ex = x + s * r * 0.32, ey = y - r * 0.05;
+      var ab = (Math.sin(pisca + t * 1.8) > 0.94) ? 0.1 : 1;
+      ctx.beginPath(); ctx.ellipse(ex, ey, r * 0.3, r * 0.3 * ab, 0, 0, 6.283);
+      ctx.fillStyle = "#fff"; ctx.fill();
+      ctx.beginPath(); ctx.arc(ex + r * 0.06, ey + r * 0.04, r * 0.14, 0, 6.283);
+      ctx.fillStyle = "#20232b"; ctx.fill();
+      ctx.beginPath(); ctx.arc(ex - r * 0.04, ey - r * 0.08, r * 0.05, 0, 6.283);
+      ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.fill();
+    }
+  };
+
+  SKINS.gatinho = function (r, x, y, cor, t, pisca) {
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.55, y - r * 0.62);
+      ctx.lineTo(x + s * r * 0.86, y - r * 1.12);
+      ctx.lineTo(x + s * r * 0.18, y - r * 0.88);
+      ctx.closePath();
+      ctx.fillStyle = cor; ctx.fill();
+      ctx.lineWidth = Math.max(1.2, r * 0.06);
+      ctx.strokeStyle = esc(cor, 0.55); ctx.stroke();
+    }
+    sombra(x, y, r); corpo(x, y, r, cor, 0.55, 0.4);
+    olhos(x, y, r, pisca, t, "gato");
+    if (r > 16) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + r * 0.22);
+      ctx.lineTo(x - r * 0.09, y + r * 0.34);
+      ctx.lineTo(x + r * 0.09, y + r * 0.34);
+      ctx.closePath();
+      ctx.fillStyle = "#ff9fb2"; ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
+      ctx.lineWidth = Math.max(1, r * 0.04);
+      for (var l = -1; l <= 1; l += 2) {
+        for (var b1 = 0; b1 < 2; b1++) {
+          ctx.beginPath();
+          ctx.moveTo(x + l * r * 0.18, y + r * (0.26 + b1 * 0.08));
+          ctx.lineTo(x + l * r * 0.72, y + r * (0.16 + b1 * 0.15));
+          ctx.stroke();
+        }
+      }
+    }
+  };
+
+  SKINS.cachorro = function (r, x, y, cor, t, pisca) {
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s * r * 0.82, y - r * 0.18, r * 0.22, r * 0.46, s * 0.35, 0, 6.283);
+      ctx.fillStyle = esc(cor, 0.3); ctx.fill();
+      ctx.lineWidth = Math.max(1.2, r * 0.06);
+      ctx.strokeStyle = esc(cor, 0.6); ctx.stroke();
+    }
+    sombra(x, y, r); corpo(x, y, r, cor, 0.5, 0.4);
+    olhos(x, y, r, pisca, t);
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.36, r * 0.3, r * 0.22, 0, 0, 6.283);
+    ctx.fillStyle = cla(cor, 0.55); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.24, r * 0.1, r * 0.075, 0, 0, 6.283);
+    ctx.fillStyle = "#2b2b33"; ctx.fill();
+    if (r > 15) {
+      ctx.beginPath();
+      ctx.ellipse(x + Math.sin(t * 3) * r * 0.06, y + r * 0.54, r * 0.1, r * 0.14, 0, 0, 6.283);
+      ctx.fillStyle = "#ff7b93"; ctx.fill();
+    }
+  };
+
+  SKINS.slime = function (r, x, y, cor, t, pisca) {
+    sombra(x, y, r * 0.9);
+    ctx.beginPath();
+    for (var i = 0; i <= 40; i++) {
+      var a = (i / 40) * 6.283;
+      var ond = 1 + Math.sin(a * 5 + t * 3) * 0.055 + Math.sin(a * 2 - t * 2) * 0.035;
+      var px = x + Math.cos(a) * r * ond, py = y + Math.sin(a) * r * 0.92 * ond;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.1, x, y, r);
+    g.addColorStop(0, cla(cor, 0.7)); g.addColorStop(0.5, cor); g.addColorStop(1, esc(cor, 0.5));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1.3, r * 0.06);
+    ctx.strokeStyle = esc(cor, 0.55); ctx.stroke();
+    olhos(x, y, r, pisca, t); if (r > 14) boca(x, y, r);
+  };
+
+  SKINS.robo = function (r, x, y, cor, t, pisca) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.9); ctx.lineTo(x, y - r * 1.25);
+    ctx.lineWidth = Math.max(1.8, r * 0.08);
+    ctx.strokeStyle = esc(cor, 0.5); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y - r * 1.3, r * 0.11, 0, 6.283);
+    ctx.fillStyle = "rgba(255,90,90," + (0.55 + Math.sin(t * 5) * 0.45) + ")"; ctx.fill();
+    sombra(x, y, r);
+    var g = ctx.createLinearGradient(x, y - r, x, y + r);
+    g.addColorStop(0, cla(cor, 0.5)); g.addColorStop(0.5, cor); g.addColorStop(1, esc(cor, 0.45));
+    ctx.beginPath();
+    var w = r * 0.9, h = r * 0.85, k = r * 0.35;
+    ctx.moveTo(x - w + k, y - h);
+    ctx.arcTo(x + w, y - h, x + w, y + h, k);
+    ctx.arcTo(x + w, y + h, x - w, y + h, k);
+    ctx.arcTo(x - w, y + h, x - w, y - h, k);
+    ctx.arcTo(x - w, y - h, x + w, y - h, k);
+    ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1.3, r * 0.06);
+    ctx.strokeStyle = esc(cor, 0.55); ctx.stroke();
+    ctx.fillStyle = "rgba(15,20,30,0.92)";
+    ctx.fillRect(x - r * 0.6, y - r * 0.42, r * 1.2, r * 0.58);
+    var piscar = Math.sin(t * 6) > 0.9;
+    ctx.fillStyle = "#5ff2b0";
+    for (var s = -1; s <= 1; s += 2) {
+      if (piscar) ctx.fillRect(x + s * r * 0.27 - r * 0.13, y - r * 0.16, r * 0.26, r * 0.05);
+      else ctx.fillRect(x + s * r * 0.27 - r * 0.13, y - r * 0.28, r * 0.26, r * 0.24);
+    }
+  };
+
+  SKINS.fantasma = function (r, x, y, cor, t, pisca) {
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    for (var i = 0; i <= 40; i++) {
+      var a = (i / 40) * 6.283;
+      var px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      if (py > y + r * 0.25) {
+        py = y + r * 0.25 + Math.sin(a * 4 + t * 3) * r * 0.22 + Math.sin(a * 7) * r * 0.08;
+      }
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.5, r * 0.1, x, y, r * 1.2);
+    g.addColorStop(0, cla(cor, 0.85)); g.addColorStop(0.5, cla(cor, 0.35)); g.addColorStop(1, esc(cor, 0.25));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1.3, r * 0.06);
+    ctx.strokeStyle = cla(cor, 0.6); ctx.stroke();
+    ctx.restore();
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s * r * 0.32, y - r * 0.08, r * 0.15, r * 0.2, 0, 0, 6.283);
+      ctx.fillStyle = "rgba(20,20,35,0.9)"; ctx.fill();
+    }
+  };
+
+  SKINS.dragao = function (r, x, y, cor, t, pisca) {
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.45, y - r * 0.7);
+      ctx.quadraticCurveTo(x + s * r * 0.95, y - r * 1.15, x + s * r * 0.6, y - r * 1.35);
+      ctx.quadraticCurveTo(x + s * r * 0.7, y - r * 1.0, x + s * r * 0.28, y - r * 0.85);
+      ctx.closePath();
+      ctx.fillStyle = "#f0e2c0"; ctx.fill();
+      ctx.lineWidth = Math.max(1.2, r * 0.05);
+      ctx.strokeStyle = "#b8a273"; ctx.stroke();
+    }
+    sombra(x, y, r); corpo(x, y, r, cor, 0.55, 0.5);
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s2 * r * 0.33, y - r * 0.12, r * 0.16, r * 0.2, 0, 0, 6.283);
+      ctx.fillStyle = "#ffd34d"; ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + s2 * r * 0.33, y - r * 0.12, r * 0.055, r * 0.19, 0, 0, 6.283);
+      ctx.fillStyle = "#1a1c22"; ctx.fill();
+    }
+  };
+
+  SKINS.coroa = function (r, x, y, cor, t, pisca) {
+    sombra(x, y, r); corpo(x, y, r, cor, 0.7, 0.42);
+    var cy = y - r * 0.92, cw = r * 0.62;
+    ctx.beginPath();
+    ctx.moveTo(x - cw, cy + r * 0.3);
+    ctx.lineTo(x - cw, cy);
+    ctx.lineTo(x - cw * 0.5, cy + r * 0.16);
+    ctx.lineTo(x, cy - r * 0.12);
+    ctx.lineTo(x + cw * 0.5, cy + r * 0.16);
+    ctx.lineTo(x + cw, cy);
+    ctx.lineTo(x + cw, cy + r * 0.3);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(x, cy - r * 0.15, x, cy + r * 0.35);
+    g.addColorStop(0, "#ffe89a"); g.addColorStop(0.5, "#f5c542"); g.addColorStop(1, "#c99a1e");
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1.2, r * 0.05);
+    ctx.strokeStyle = "#a8801a"; ctx.stroke();
+    olhos(x, y, r, pisca, t); if (r > 14) boca(x, y, r);
+  };
+
+  SKINS.estrela = function (r, x, y, cor, t, pisca) {
+    sombra(x, y, r); corpo(x, y, r, cor, 0.75, 0.5);
+    for (var i = 0; i < 5; i++) {
+      var a = t * 1.4 + (i / 5) * 6.283;
+      var sx = x + Math.cos(a) * r * 1.25, sy = y + Math.sin(a) * r * 1.25;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.beginPath();
+      for (var v = 0; v < 10; v++) {
+        var an = (v / 10) * 6.283 - Math.PI / 2;
+        var d = (v % 2 === 0) ? r * 0.16 : r * 0.072;
+        var px = Math.cos(an) * d, py = Math.sin(an) * d;
+        if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = "rgba(255,245,190," + (0.55 + Math.sin(t * 4 + i) * 0.4) + ")";
+      ctx.fill();
+      ctx.restore();
+    }
+    olhos(x, y, r, pisca, t); if (r > 14) boca(x, y, r);
+  };
+
+  SKINS.vampiro = function (r, x, y, cor, t, pisca) {
+    ctx.beginPath();
+    ctx.moveTo(x - r * 1.05, y + r * 0.15);
+    ctx.quadraticCurveTo(x - r * 1.35, y + r * 1.0, x, y + r * 1.15);
+    ctx.quadraticCurveTo(x + r * 1.35, y + r * 1.0, x + r * 1.05, y + r * 0.15);
+    ctx.quadraticCurveTo(x, y + r * 0.4, x - r * 1.05, y + r * 0.15);
+    ctx.closePath();
+    ctx.fillStyle = "#8f1d2f"; ctx.fill();
+    sombra(x, y, r * 0.9); corpo(x, y, r, cor, 0.6, 0.45);
+    olhos(x, y, r, pisca, t, "vampiro");
+    if (r > 14) {
+      ctx.fillStyle = "#fff";
+      for (var s = -1; s <= 1; s += 2) {
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.16, y + r * 0.3);
+        ctx.lineTo(x + s * r * 0.07, y + r * 0.32);
+        ctx.lineTo(x + s * r * 0.11, y + r * 0.52);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+  };
+
+  SKINS.neon = function (r, x, y, cor, t, pisca) {
+    var pulso = 0.6 + Math.sin(t * 4) * 0.4;
+    ctx.save();
+    ctx.shadowColor = cor;
+    ctx.shadowBlur = r * (0.9 + pulso * 0.8);
+    sombra(x, y, r); corpo(x, y, r, cor, 0.5, 0.2);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.2, t * 2, t * 2 + Math.PI * 1.1);
+    ctx.lineWidth = r * 0.09; ctx.strokeStyle = cla(cor, 0.7); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.2, t * 2 + Math.PI, t * 2 + Math.PI * 1.9);
+    ctx.stroke();
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s * r * 0.32, y - r * 0.1, r * 0.16, r * 0.19, 0, 0, 6.283);
+      ctx.fillStyle = "#141a26"; ctx.fill();
+    }
+  };
+
+  SKINS.lobo = function (r, x, y, cor, t, pisca) {
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.4, y - r * 0.75);
+      ctx.lineTo(x + s * r * 0.72, y - r * 1.22);
+      ctx.lineTo(x + s * r * 0.85, y - r * 0.6);
+      ctx.closePath();
+      ctx.fillStyle = esc(cor, 0.35); ctx.fill();
+      ctx.lineWidth = Math.max(1.2, r * 0.06);
+      ctx.strokeStyle = esc(cor, 0.6); ctx.stroke();
+    }
+    sombra(x, y, r); corpo(x, y, r, cor, 0.45, 0.55);
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.42, r * 0.3, r * 0.2, 0, 0, 6.283);
+    ctx.fillStyle = esc(cor, 0.45); ctx.fill();
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s2 * r * 0.3, y - r * 0.14, r * 0.15, r * 0.12, 0, 0, 6.283);
+      ctx.fillStyle = "#ffd66b"; ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + s2 * r * 0.3, y - r * 0.14, r * 0.05, r * 0.11, 0, 0, 6.283);
+      ctx.fillStyle = "#15171d"; ctx.fill();
+    }
+  };
+
+  SKINS.capivara = function (r, x, y, cor, t, pisca) {
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.arc(x + s * r * 0.72, y - r * 0.62, r * 0.2, 0, 6.283);
+      ctx.fillStyle = esc(cor, 0.28); ctx.fill();
+      ctx.lineWidth = Math.max(1.2, r * 0.06);
+      ctx.strokeStyle = esc(cor, 0.5); ctx.stroke();
+    }
+    sombra(x, y, r);
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * 1.02, r * 0.95, 0, 0, 6.283);
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
+    g.addColorStop(0, cla(cor, 0.5)); g.addColorStop(0.4, cor); g.addColorStop(1, esc(cor, 0.4));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.5, r * 0.42, r * 0.26, 0, 0, 6.283);
+    ctx.fillStyle = cla(cor, 0.45); ctx.fill();
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      ctx.beginPath();
+      ctx.ellipse(x + s2 * r * 0.33, y - r * 0.1, r * 0.11, r * 0.13, 0, 0, 6.283);
+      ctx.fillStyle = "#22252b"; ctx.fill();
+    }
+  };
+
+  var CATALOGO = {
+    classico:      { nome: "Classico",      desc: "A bolha brilhante de sempre.",         req: "",                              livre: true },
+    olhos_grandes: { nome: "Olhos Grandes", desc: "Olhos enormes e brilhantes.",          req: "",                              livre: true },
+    gatinho:       { nome: "Gatinho",       desc: "Orelhas pontudas e bigodes.",          req: "",                              livre: true },
+    cachorro:      { nome: "Cachorro",      desc: "Orelhas caidas e lingua de fora.",     req: "",                              livre: true },
+    slime:         { nome: "Slime",         desc: "Gosma ondulada que balanca.",          req: "",                              livre: true },
+    robo:          { nome: "Robo",          desc: "Antena, visor digital e parafusos.",   req: "",                              livre: true },
+    fantasma:      { nome: "Fantasma",      desc: "Transparente, com cauda ondulada.",    req: "",                              livre: true },
+    dragao:        { nome: "Dragaozinho",   desc: "Chifres, escamas e olhos de fogo.",    req: "Alcance massa 60 no recorde",   check: function () { return prog.recorde >= 60; } },
+    coroa:         { nome: "Realeza",       desc: "Coroa dourada de campeao.",            req: "Alcance massa 100 no recorde",  check: function () { return prog.recorde >= 100; } },
+    estrela:       { nome: "Estelar",       desc: "Aura de estrelas girando ao redor.",   req: "Alcance massa 160 no recorde",  check: function () { return prog.recorde >= 160; } },
+    vampiro:       { nome: "Vampiro",       desc: "Capa escura, olhos vermelhos, presas.",req: "Devore 40 criaturas no total",  check: function () { return prog.devorados >= 40; } },
+    neon:          { nome: "Neon",          desc: "Brilho pulsante e anel girando.",      req: "Devore 80 criaturas no total",  check: function () { return prog.devorados >= 80; } },
+    lobo:          { nome: "Lobo",          desc: "Orelhas de lobo e focinho escuro.",    req: "Jogue 8 partidas",              check: function () { return prog.partidas >= 8; } },
+    capivara:      { nome: "Capivara",      desc: "Serena, com orelhinhas redondas.",     req: "Jogue 20 partidas",             check: function () { return prog.partidas >= 20; } }
+  };
+
+  function liberada(id) {
+    var s = CATALOGO[id];
+    if (!s) return false;
+    if (s.livre) return true;
+    return s.check ? s.check() : false;
+  }
+
+  /* ---------------- GALERIA ---------------- */
+  function montaGaleria() {
+    var grade = document.getElementById("grade");
+    if (!grade) return;
+    grade.innerHTML = "";
+
+    for (var id in CATALOGO) {
+      if (!CATALOGO.hasOwnProperty(id)) continue;
+      var s = CATALOGO[id];
+      var ok = liberada(id);
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "skin" + (ok ? "" : " travada") + (prog.skin === id ? " ativa" : "");
+
+      var cv = document.createElement("canvas");
+      cv.width = 120; cv.height = 120;
+      var c2 = cv.getContext("2d");
+      var guardado = ctx;
+      ctx = c2;
+      c2.clearRect(0, 0, 120, 120);
+      try { SKINS[id](36, 60, 62, sorteia(PALETA), 1.2, 1); } catch (e) { }
+      ctx = guardado;
+      btn.appendChild(cv);
+
+      var n = document.createElement("span");
+      n.textContent = s.nome;
+      btn.appendChild(n);
+
+      var d = document.createElement("small");
+      d.textContent = ok ? s.desc : (s.req || "Bloqueada");
+      btn.appendChild(d);
+
+      (function (idLocal, okLocal, sLocal) {
+        btn.addEventListener("click", function () {
+          if (!okLocal) { aviso("Skin bloqueada: " + (sLocal.req || "")); return; }
+          prog.skin = idLocal;
+          salva();
+          montaGaleria();
+          document.getElementById("skins").classList.add("oculto");
+          document.getElementById("inicio").classList.remove("oculto");
+          aviso("Skin equipada: " + sLocal.nome);
+        });
+      })(id, ok, s);
+
+      grade.appendChild(btn);
+    }
+  }
+
+  /* ---------------- MULTIPLAYER ONLINE ---------------- */
+  function statusOnline(txt, erro) {
+    var el = document.getElementById("statusOnline");
+    if (el) { el.textContent = txt; el.style.color = erro ? "#ff8d9b" : "#ffd166"; }
+  }
+  function selecionaSala(id) {
+    salaOnline = id;
+    var botoesSala = document.querySelectorAll(".sala");
+    for (var i = 0; i < botoesSala.length; i++) botoesSala[i].classList.toggle("ativa", botoesSala[i].getAttribute("data-sala") === id);
+  }
+  function desconectaOnline() {
+    if (socketOnline) { try { socketOnline.close(); } catch (e) {} }
+    socketOnline = null; modoOnline = false; idOnline = null;
+    bichos = bichos.filter(function (b) { return !b.onlinePlayer; });
+  }
+  function conectarOnline() {
+    var endereco = document.getElementById("enderecoOnline").value.trim();
+    var nome = document.getElementById("nomeOnline").value.trim().slice(0,18) || "Jogador";
+    if (!/^wss?:\/\//i.test(endereco)) { statusOnline("Informe um endereço ws:// ou wss:// válido.", true); return; }
+    if (!window.WebSocket) { statusOnline("Este navegador não oferece suporte a WebSocket.", true); return; }
+    desconectaOnline();
+    statusOnline("Conectando ao servidor...", false);
+    try { socketOnline = new WebSocket(endereco); } catch (e) { statusOnline("Não foi possível abrir a conexão.", true); return; }
+    socketOnline.onopen = function () {
+      socketOnline.send(JSON.stringify({ type: "join", name: nome, room: salaOnline, skin: prog.skin }));
+      statusOnline("Conectado! Entrando na sala...", false);
+    };
+    socketOnline.onmessage = function (ev) {
+      var msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.type === "error") { statusOnline(msg.message || "Erro no servidor.", true); return; }
+      if (msg.type === "joined") {
+        idOnline = msg.id; modoOnline = true;
+        regrasSala = msg.rules || { crescimento: 1, perda: 1, velocidade: 1, nome: salaOnline };
+        statusOnline("Na sala " + (regrasSala.nome || salaOnline) + " — " + (msg.count || 1) + " jogador(es).", false);
+        inicia();
+        document.getElementById("online").classList.add("oculto");
+      } else if (msg.type === "state" && modoOnline) {
+        atualizaJogadoresRemotos(msg.players || []);
+        statusOnline("Online: " + (msg.count || 1) + " jogador(es) nesta sala · " + (regrasSala.nome || salaOnline), false);
+      }
+    };
+    socketOnline.onerror = function () { statusOnline("Falha na conexão. Confira o endereço e se o servidor está ligado.", true); };
+    socketOnline.onclose = function () { if (modoOnline) statusOnline("Conexão encerrada. Volte ao menu para reconectar.", true); modoOnline = false; };
+  }
+  function atualizaJogadoresRemotos(players) {
+    var vistos = {};
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i]; if (!p || p.id === idOnline) continue;
+      vistos[p.id] = true;
+      var b = null;
+      for (var j = 0; j < bichos.length; j++) if (bichos[j].onlinePlayer && bichos[j].serverId === p.id) { b = bichos[j]; break; }
+      if (!b) { b = Cria(100, 100, R_INICIAL, p.color || sorteia(PALETA), p.name || "Jogador", false); b.onlinePlayer = true; b.serverId = p.id; bichos.push(b); }
+      b.nome = p.name || "Jogador"; b.cor = p.color || b.cor; b.skin = p.skin || "classico"; b.vivo = p.alive !== false;
+      var cells = Array.isArray(p.cells) ? p.cells : [];
+      if (cells.length) {
+        b.celulas = cells.slice(0, MAX_CELULAS).map(function (c) { return { x: +c.x || 0, y: +c.y || 0, r: lim(+c.r || R_INICIAL, R_MIN, R_MAX), voo: 0, vx: 0, vy: 0, espera: 0, pisca: 0, velx: 0, vely: 0 }; });
+      }
+    }
+    bichos = bichos.filter(function (b) { return !b.onlinePlayer || vistos[b.serverId]; });
+  }
+  function enviaEstadoOnline(agora) {
+    if (!modoOnline || !socketOnline || socketOnline.readyState !== WebSocket.OPEN || !eu || agora - ultimoEnvioOnline < 100) return;
+    ultimoEnvioOnline = agora;
+    socketOnline.send(JSON.stringify({ type: "update", name: document.getElementById("nomeOnline").value.trim().slice(0,18) || "Jogador", skin: prog.skin, alive: !!eu.vivo,
+      cells: eu.celulas.map(function (c) { return { x: Math.round(c.x), y: Math.round(c.y), r: Math.round(c.r * 10) / 10 }; }) }));
+  }
+
+  /* ---------------- LOOP 30 FPS ---------------- */
+  var INTERVALO = 1000 / FPS;
+  var ultimo = performance.now();
+
+  function loop(agora) {
+    requestAnimationFrame(loop);
+    if (agora - ultimo < INTERVALO - 1) return;
+    var passado = agora - ultimo;
+    ultimo = agora;
+    var dt = Math.min(0.05, passado / 1000);
+
+    if (eu && !acabou) atualiza(dt);
+    enviaEstadoOnline(agora);
+    desenha();
+  }
+
+  document.getElementById("abrirOnline").addEventListener("click", function () {
+    document.getElementById("inicio").classList.add("oculto");
+    document.getElementById("online").classList.remove("oculto");
+    statusOnline("Escolha uma sala e conecte ao servidor.", false);
+  });
+  document.getElementById("voltarOnline").addEventListener("click", function () {
+    desconectaOnline();
+    document.getElementById("online").classList.add("oculto");
+    document.getElementById("inicio").classList.remove("oculto");
+  });
+  document.getElementById("conectarOnline").addEventListener("click", conectarOnline);
+  var escolhasSala = document.querySelectorAll(".sala");
+  for (var es = 0; es < escolhasSala.length; es++) escolhasSala[es].addEventListener("click", function () { selecionaSala(this.getAttribute("data-sala")); });
+
+  /* ---------------- BOTOES ---------------- */
+  document.getElementById("jogar").addEventListener("click", function () {
+    desconectaOnline(); regrasSala = { crescimento: 1, perda: 1, velocidade: 1, nome: "Solo" }; ajustar(); inicia();
+  });
+  document.getElementById("deNovo").addEventListener("click", function () {
+    ajustar(); inicia();
+  });
+  document.getElementById("abrirSkins").addEventListener("click", function () {
+    montaGaleria();
+    document.getElementById("inicio").classList.add("oculto");
+    document.getElementById("skins").classList.remove("oculto");
+  });
+  document.getElementById("voltar").addEventListener("click", function () {
+    document.getElementById("skins").classList.add("oculto");
+    document.getElementById("inicio").classList.remove("oculto");
+  });
+  document.getElementById("zerar").addEventListener("click", function () {
+    prog.recorde = 0; prog.devorados = 0; prog.partidas = 0; prog.skin = "classico";
+    salva(); montaGaleria();
+    aviso("Progresso apagado");
+  });
+
+  /* ---------------- ARRANQUE ---------------- */
+  carrega();
+  ajustar();
+  inicia();
+  acabou = true;                  // fica parado na tela inicial
+  document.getElementById("inicio").classList.remove("oculto");
+  montaGaleria();
+  requestAnimationFrame(loop);
+})();
+
+</script>
+</body>
+</html>
